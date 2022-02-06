@@ -5,6 +5,7 @@ import numpy as np
 import time
 import scipy.signal
 
+import queue
 import matplotlib.pyplot as plt
 
 # https://www.geeksforgeeks.org/check-data-type-in-numpy/
@@ -15,21 +16,66 @@ import matplotlib.pyplot as plt
 # https://arxiv.org/pdf/1804.02891.pdf
 p = pyaudio.PyAudio()
 
+
+class EnvelopeFollower:
+    """
+    """
+
+    def __init__(self, bandwidth_Hz: float=100, sample_rate_Hz: float=44100):
+        """
+        :param bandwidth_Hz: Cutoff frequency to use in the lowpass filter stage
+        :param sample_rate_Hz: Sample rate/frequency in Hz
+        """
+
+        # Create a lowpass filter with a 2nd order butterworth characteristic
+        self._b, self._a = scipy.signal.butter(2, bandwidth_Hz, fs=sample_rate_Hz)
+
+        # To use with pyaudio we need to retain the 32 bit float type to prevent unnecessary conversions
+        self._b = self._b.astype(np.float32)
+        self._a = self._a.astype(np.float32)
+
+        # Store these parameters for getters later
+        self._sample_rate_Hz = sample_rate_Hz
+        self._bandwidth_Hz = bandwidth_Hz
+        
+        # Setup and then initialize the state vector
+        self._z = None
+        self.reset()
+
+    def reset(self):
+        """
+        Reset the filter state
+        """
+        self._z = scipy.signal.lfilter_zi(self._b, self._a).astype(np.float32)
+
+    def run(self, x):
+        """
+                # https://www.dsprelated.com/showarticle/938.php  Asynchronous Real Square-Law Envelope Detection
+
+        """
+        # Step 1: take the absolute value of the input signal
+        abs_x = np.abs(x)
+
+        # Step 2: apply a low pass filter to find the envelope of the signal
+        y, self._z = scipy.signal.lfilter(self._b, self._a, abs_x, zi=self._z)
+        return y
+
+    @property
+    def sample_rate_Hz(self):
+        return self._sample_rate_Hz
+    
+    @property
+    def bandwidth_Hz(self):
+        return self._bandwidth_Hz
+
 def run():
 
     CHANNELS = 1
     RATE = 44100
     CHUNK = 1024*4
 
-    b, a = scipy.signal.butter(2, 50, fs=RATE)
-    b = b.astype(np.float32)
-    a = a.astype(np.float32)
-
-    # b = scipy.signal.firwin(150, 0.004)
-    # a = 1
-    global state_vector
-    # Initialize the state
-    state_vector = scipy.signal.lfilter_zi(b, a).astype(np.float32)
+    ENVELOPE_FOLLOWER_FC = 30
+    envelope_follower = EnvelopeFollower(ENVELOPE_FOLLOWER_FC, RATE)
 
     global x1, x2, x1_prev, x2_prev
     x1 = np.array([0] * CHUNK)
@@ -43,23 +89,14 @@ def run():
         # Process data here
         global state_vector
 
-        # square = audio_data*audio_data
-        # fc = 2000*(np.sin(2*np.pi*time.time()*10) + 1)
-        # print(fc)
-        # b, a = scipy.signal.butter(3, fc, fs=RATE)
-        # b = b.astype(np.float32)
-        # a = a.astype(np.float32)
-
-        
-        # https://www.dsprelated.com/showarticle/938.php  Asynchronous Real Square-Law Envelope Detection
-        envelope, state_vector = scipy.signal.lfilter(b, a, np.abs(audio_data), zi=state_vector)
+        out = envelope_follower.run(audio_data)
         
         global x1, x2, x1_prev, x2_prev
         x1_prev = x1
         x2_prev = x2
-        x1 = envelope
+        x1 = out
         x2 = audio_data
-        # print(envelope.dtype)
+
         return audio_data, pyaudio.paContinue
 
     stream = p.open(format=pyaudio.paFloat32,
