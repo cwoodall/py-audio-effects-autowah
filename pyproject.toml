@@ -25,3 +25,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 autowah = 'autowah.console:run'
+
+[tool.pytest.ini_options]
+addopts = "--cov . -n 2 --cov-report xml:coverage.xml"
