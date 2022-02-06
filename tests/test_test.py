@@ -5,10 +5,11 @@ from scipy import signal
 
 import pytest
 
+plt.style.use('ggplot')
 
 def test_autowah_variable_cutoff_filter_even_lengths_not_supported():
     with pytest.raises(NotImplementedError):
-        vcf = VariableCutoffFilter(filter_len=100)
+         VariableCutoffFilter(filter_len=100)
 
 def test_autowah_variable_cutoff_filter_coefficients():
     filter_len = 51
