@@ -11,6 +11,7 @@ plotly = "^5.5.0"
 scipy = "^1.7.3"
 PyAudio = "^0.2.11"
 matplotlib = "^3.5.1"
+numpy_ringbuffer = "^0.2.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"

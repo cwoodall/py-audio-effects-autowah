@@ -4,7 +4,11 @@ import pyaudio
 import numpy as np
 import time
 import scipy.signal
+from numpy_ringbuffer import RingBuffer
 
+from collections import deque
+
+from .envelope_follower import EnvelopeFollower
 import queue
 import matplotlib.pyplot as plt
 
@@ -17,71 +21,22 @@ import matplotlib.pyplot as plt
 p = pyaudio.PyAudio()
 
 
-class EnvelopeFollower:
-    """
-    """
-
-    def __init__(self, bandwidth_Hz: float=100, sample_rate_Hz: float=44100):
-        """
-        :param bandwidth_Hz: Cutoff frequency to use in the lowpass filter stage
-        :param sample_rate_Hz: Sample rate/frequency in Hz
-        """
-
-        # Create a lowpass filter with a 2nd order butterworth characteristic
-        self._b, self._a = scipy.signal.butter(2, bandwidth_Hz, fs=sample_rate_Hz)
-
-        # To use with pyaudio we need to retain the 32 bit float type to prevent unnecessary conversions
-        self._b = self._b.astype(np.float32)
-        self._a = self._a.astype(np.float32)
-
-        # Store these parameters for getters later
-        self._sample_rate_Hz = sample_rate_Hz
-        self._bandwidth_Hz = bandwidth_Hz
-        
-        # Setup and then initialize the state vector
-        self._z = None
-        self.reset()
-
-    def reset(self):
-        """
-        Reset the filter state
-        """
-        self._z = scipy.signal.lfilter_zi(self._b, self._a).astype(np.float32)
-
-    def run(self, x):
-        """
-                # https://www.dsprelated.com/showarticle/938.php  Asynchronous Real Square-Law Envelope Detection
-
-        """
-        # Step 1: take the absolute value of the input signal
-        abs_x = np.abs(x)
-
-        # Step 2: apply a low pass filter to find the envelope of the signal
-        y, self._z = scipy.signal.lfilter(self._b, self._a, abs_x, zi=self._z)
-        return y
-
-    @property
-    def sample_rate_Hz(self):
-        return self._sample_rate_Hz
-    
-    @property
-    def bandwidth_Hz(self):
-        return self._bandwidth_Hz
-
 def run():
 
     CHANNELS = 1
     RATE = 44100
     CHUNK = 1024*4
-
+    HISTORY_LENGTH = CHUNK*20
     ENVELOPE_FOLLOWER_FC = 30
     envelope_follower = EnvelopeFollower(ENVELOPE_FOLLOWER_FC, RATE)
 
-    global x1, x2, x1_prev, x2_prev
-    x1 = np.array([0] * CHUNK)
-    x2 = np.array([0] * CHUNK)
-    x1_prev = np.array([0] * CHUNK)
-    x2_prev = np.array([0] * CHUNK)
+    scope = {
+        "in": RingBuffer(capacity=HISTORY_LENGTH),
+        "envelope": RingBuffer(capacity=HISTORY_LENGTH),
+    }
+
+    for signal in scope.values():
+        signal.extend(np.zeros(signal.maxlen))
 
     def callback(in_data, frame_count, time_info, flag):
         # using Numpy to convert to array for processing
@@ -89,13 +44,10 @@ def run():
         # Process data here
         global state_vector
 
-        out = envelope_follower.run(audio_data)
+        envelope = envelope_follower.run(audio_data)
         
-        global x1, x2, x1_prev, x2_prev
-        x1_prev = x1
-        x2_prev = x2
-        x1 = out
-        x2 = audio_data
+        scope["in"].extend(audio_data)
+        scope["envelope"].extend(envelope)
 
         return audio_data, pyaudio.paContinue
 
@@ -109,20 +61,25 @@ def run():
 
     stream.start_stream()
     plt.style.use('ggplot')
+
     while stream.is_active():
         fig = plt.figure()
-        ax = fig.add_subplot(111)
-        plt.ylim((-1, 1))
-        plt.ion()    
-        line1, = ax.plot(np.append(x1_prev, x1))
-        line2, = ax.plot(np.append(x2_prev, x2))
+        ax1: plt.Axes = fig.add_subplot(211)
+        ax2 = fig.add_subplot(212, sharex=ax1)
+        ax1.set_ylim((-1,1))
+        ax2.set_ylim((-1,1))
+        plt.ion()
+
+
+        line1, = ax1.plot(np.array(scope["in"]))
+        line2, = ax2.plot(np.array(scope["envelope"]))
 
         plt.show()
 
         # pyplot.plot()
         while True:  
-            line1.set_ydata(np.append(x1_prev, x1))
-            line2.set_ydata(np.append(x2_prev, x2))
+            line1.set_ydata(np.array(scope["in"]))
+            line2.set_ydata(np.array(scope["envelope"]))
             fig.canvas.flush_events()
             time.sleep(.01)
 
