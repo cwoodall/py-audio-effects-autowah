@@ -1,7 +1,15 @@
 from scipy import signal
 import numpy as np
+import numba
+from collections import deque
 
-@np.vectorize
+@numba.jit()
+def find_nearest_idx(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
+
+@numba.jit()
 def _coefficient_sin(n, omega_c):
     if n != 0:
         return np.sin(omega_c * n)
@@ -18,7 +26,7 @@ class VariableCutoffFilter:
           ISSN 0165-1684, https://doi.org/10.1016/0165-1684(88)90090-4.
     """
 
-    def __init__(self, filter_len=51, fs: float = None):
+    def __init__(self, filter_len=51, fs: float = None, chunk =None):
         """
         :param fs: Sample rate/frequency in Hz, if this is None then we assume 0-PI normalized inputs.
         :param filter_len:
@@ -39,14 +47,26 @@ class VariableCutoffFilter:
             # TODO: implement the even case
             raise NotImplementedError("Even case is not implemented")
 
+        self.chunk = chunk
+        if self.chunk:
+            self.ys = np.empty(chunk, dtype=np.float32)
+
+        self._coefficient_calc = np.vectorize(_coefficient_sin)
+
         self.reset()
 
     def reset(self):
         self._compute_static_coefficients()
         self._d = 0
         self._is_init = False
-        self._z = None
-
+        self._z = deque(maxlen=self._filter_len)
+        self._z.extend(np.zeros(self._filter_len, dtype=np.float32))
+        self._coefficients_lut_size = 1024*2
+        self._coefficients_lut_max = np.pi
+        self._coefficients_lut_omegas = np.linspace(0, self._coefficients_lut_max, endpoint=False, num=self._coefficients_lut_size)
+        
+        self._coefficients_lut = [self._compute_coefficients(w) for w in self._coefficients_lut_omegas]    
+    
     def run(self, u, fc):
         """
         fc is converted to scale based on what fs is set to
@@ -65,12 +85,17 @@ class VariableCutoffFilter:
         else:
             omega_c = fc
 
-        bs = [self._compute_coefficients(w) for w in omega_c]
-        
-        return np.array(
-            [self._step(x,b) for x, b in zip(u, bs)],
-            dtype=np.float32,
-        )
+
+        if not self.chunk:
+            self.ys = np.empty(len(u), dtype=np.float32)
+
+        coeffs_idx = np.round(self._coefficients_lut_size*omega_c/self._coefficients_lut_max)
+
+        for i in range(len(u)):
+            # coeffs_idx = find_nearest_idx(self._coefficients_lut_omegas, omega_c[i])
+            coeffs = self._coefficients_lut[int(coeffs_idx[i])]
+            self.ys[i] = self._step(u[i],coeffs)
+        return self.ys
 
     def _step(self, u, b):
         """
@@ -82,20 +107,16 @@ class VariableCutoffFilter:
         :param b: coefficients for the FIR filter
         :return   a filtered scalar value
         """
-        if not self._is_init:
-            self._z = signal.lfilter_zi(b, 1) * u
-            self._is_init = True
-
-        y, self._z = signal.lfilter(b, [1.0], [u], zi=self._z)
-        return y[0]
+        self._z.append(u)
+        return sum([b[i] * self._z[i] for i in range(self._filter_len)])
 
 
     def _compute_coefficients(self, omega_c):
-        return self.coefficients * _coefficient_sin(self.ns, omega_c)
+        return self.coefficients * self._coefficient_calc(self.ns, omega_c)
 
     def _compute_static_coefficients(self):
         if self._is_odd:
-            self.ns = np.array(range(-1 * self._N, self._N + 1))
+            self.ns = np.array(range(-1 * self._N, self._N + 1), dtype=np.float32)
             # This is the "Ideal LPF"
             h_M0 = lambda n: (self._w_co / np.pi) * np.sinc(self._w_co * n / np.pi)
 
@@ -104,7 +125,7 @@ class VariableCutoffFilter:
                 [
                     h_M0(n) * 1 / np.sin(self._w_co * n) if n != 0 else 1 / np.pi
                     for n in self.ns
-                ]
+                ], dtype=np.float32
             )
         else:
             raise NotImplementedError("Even case is not implemented")

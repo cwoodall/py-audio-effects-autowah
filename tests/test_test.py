@@ -27,7 +27,7 @@ def test_autowah_variable_cutoff_filter_coefficients():
 
     # As defined by [1] the center value for an odd filter will always be 1/pi
     # This will be scaled appropriately
-    assert vcf.coefficients[center_idx] == 1/np.pi
+    assert vcf.coefficients[center_idx] == pytest.approx(1/np.pi)
 
 def find_nearest_idx(array, value):
     array = np.asarray(array)
