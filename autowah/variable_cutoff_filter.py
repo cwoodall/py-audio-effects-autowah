@@ -1,6 +1,12 @@
 from scipy import signal
 import numpy as np
 
+@np.vectorize
+def _coefficient_sin(n, omega_c):
+    if n != 0:
+        return np.sin(omega_c * n)
+    else:
+        return omega_c
 
 class VariableCutoffFilter:
     """
@@ -15,7 +21,7 @@ class VariableCutoffFilter:
     def __init__(self, filter_len=51, fs: float = None):
         """
         :param fs: Sample rate/frequency in Hz, if this is None then we assume 0-PI normalized inputs.
-        :param filter_len: 
+        :param filter_len:
         """
 
         self.fs = fs
@@ -59,11 +65,10 @@ class VariableCutoffFilter:
         else:
             omega_c = fc
 
+        bs = [self._compute_coefficients(w) for w in omega_c]
+        
         return np.array(
-            [
-                self._step(x, self._compute_coefficients(w))
-                for x, w in zip(u, omega_c)
-            ],
+            [self._step(x,b) for x, b in zip(u, bs)],
             dtype=np.float32,
         )
 
@@ -84,16 +89,13 @@ class VariableCutoffFilter:
         y, self._z = signal.lfilter(b, [1.0], [u], zi=self._z)
         return y[0]
 
+
     def _compute_coefficients(self, omega_c):
-        b = [
-            c * np.sin(omega_c * n) if n != 0 else c * omega_c
-            for c, n in zip(self.coefficients, self.ns)
-        ]
-        return np.array(b, dtype=np.float32)
+        return self.coefficients * _coefficient_sin(self.ns, omega_c)
 
     def _compute_static_coefficients(self):
         if self._is_odd:
-            self.ns = range(-1 * self._N, self._N + 1)
+            self.ns = np.array(range(-1 * self._N, self._N + 1))
             # This is the "Ideal LPF"
             h_M0 = lambda n: (self._w_co / np.pi) * np.sinc(self._w_co * n / np.pi)
 
