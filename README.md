@@ -28,12 +28,15 @@ graph LR
 
 - [x] Cleanup Envelope Detector implementation
 - [x] Implement variable bandwidth filter (needs to be computed per sample)
-- [ ] Cleanup the variable bw filter
+- [x] Cleanup the variable bw filter
 - [ ] Tuneable Q filter
 - [ ] Clean up the scope code
 - [ ] Abstract block type + wiring diagram concept?
-- [ ] Finish the autowah integration
+- [x] Finish the autowah integration
 - [ ] Create plots and gather resources
 - [ ] Diagram out architecture of the system
 - [ ] Write blog post
 - [ ] Publish
+- [ ] Record some videos
+- [ ] Apply to a wav file
+- [ ] Fix the underruns based on the filter len... Or get a better tuneable Q filter in there...

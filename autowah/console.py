@@ -25,13 +25,17 @@ def run():
 
     CHANNELS = 1
     RATE = 44100
-    CHUNK = int(1024 * 8)
+    CHUNK = int(1024 * 2)
     HISTORY_LENGTH = CHUNK * 20
-    ENVELOPE_FOLLOWER_FC = 30
+
+    # Make these variables controlable
+    ENVELOPE_FOLLOWER_FC = 50
     envelope_follower = EnvelopeFollower(ENVELOPE_FOLLOWER_FC, RATE)
-    lpf = VariableCutoffFilter(filter_len=51, fs=RATE, chunk=CHUNK)
+
+    # Q!
+    lpf = VariableCutoffFilter(filter_len=41, fs=RATE, chunk=CHUNK)
     starting_freq = 50
-    sensitivity = 10000
+    sensitivity = 20000
     scope = {
         "in": RingBuffer(capacity=HISTORY_LENGTH),
         "envelope": RingBuffer(capacity=HISTORY_LENGTH),
@@ -46,11 +50,11 @@ def run():
         audio_data = np.fromstring(in_data, dtype=np.float32)
         # Process data here
 
-        envelope = envelope_follower.run(audio_data)*2
+        envelope = envelope_follower.run(audio_data)*10
         freqs = starting_freq + envelope * sensitivity
 
         # print(freqs)
-        out = .5* lpf.run(audio_data, freqs)
+        out = 1* lpf.run(audio_data, freqs)
         out = out.astype(np.float32)
 
         scope["in"].extend(audio_data)
@@ -90,12 +94,13 @@ def run():
 
     plt.show()
 
+    # Move this stuff into a different process...
     while stream.is_active():
         line1.set_ydata(np.array(scope["in"]))
         line2.set_ydata(np.array(scope["envelope"]))
         line3.set_ydata(np.array(scope["out"]))
         fig.canvas.flush_events()
-        time.sleep(.1)
+        # time.sleep(.1)
     #     time.sleep(20)
     #     stream.stop_stream()
     #     print("Stream is stopped")

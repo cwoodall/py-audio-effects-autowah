@@ -32,7 +32,7 @@ class VariableCutoffFilter:
         :param filter_len:
         """
 
-        self.fs = fs
+        self.fs = fs or 2*np.pi
 
         self._filter_len = filter_len
 
@@ -61,10 +61,10 @@ class VariableCutoffFilter:
         self._is_init = False
         self._z = deque(maxlen=self._filter_len)
         self._z.extend(np.zeros(self._filter_len, dtype=np.float32))
+
+        # Create a lookup table for the available filter frequencies from 0 to nyquist
         self._coefficients_lut_size = 1024*2
-        self._coefficients_lut_max = np.pi
-        self._coefficients_lut_omegas = np.linspace(0, self._coefficients_lut_max, endpoint=False, num=self._coefficients_lut_size)
-        
+        self._coefficients_lut_omegas = np.linspace(0, np.pi, endpoint=False, num=self._coefficients_lut_size)
         self._coefficients_lut = [self._compute_coefficients(w) for w in self._coefficients_lut_omegas]    
     
     def run(self, u, fc):
@@ -79,17 +79,11 @@ class VariableCutoffFilter:
         if np.isscalar(fc):
             fc = np.array([fc] * len(u), dtype=np.float32)
 
-        # Normalize omega_c between 0 and pi (to obey nyquist)
-        if self.fs:
-            omega_c = 2 * np.pi * fc / self.fs
-        else:
-            omega_c = fc
-
-
         if not self.chunk:
             self.ys = np.empty(len(u), dtype=np.float32)
 
-        coeffs_idx = np.round(self._coefficients_lut_size*omega_c/self._coefficients_lut_max)
+        # Normalize omega_c between 0 and pi (to obey nyquist)
+        coeffs_idx = np.round(self._coefficients_lut_size*fc/self.fs)
 
         for i in range(len(u)):
             # coeffs_idx = find_nearest_idx(self._coefficients_lut_omegas, omega_c[i])
@@ -117,7 +111,7 @@ class VariableCutoffFilter:
     def _compute_static_coefficients(self):
         if self._is_odd:
             self.ns = np.array(range(-1 * self._N, self._N + 1), dtype=np.float32)
-            # This is the "Ideal LPF"
+            # This is the "Ideal LPF"... How can I increase the Q of this filter to get more resonance?
             h_M0 = lambda n: (self._w_co / np.pi) * np.sinc(self._w_co * n / np.pi)
 
             # Calculate a known set of coefficients for the FIR filter design
