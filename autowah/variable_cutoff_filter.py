@@ -83,7 +83,7 @@ class VariableCutoffFilter:
             self.ys = np.empty(len(u), dtype=np.float32)
 
         # Normalize omega_c between 0 and pi (to obey nyquist)
-        coeffs_idx = np.round(self._coefficients_lut_size*fc/self.fs)
+        coeffs_idx = np.clip(np.round((self._coefficients_lut_size-1)*2*fc/self.fs),0,self._coefficients_lut_size-1)
 
         for i in range(len(u)):
             # coeffs_idx = find_nearest_idx(self._coefficients_lut_omegas, omega_c[i])
