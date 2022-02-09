@@ -1,3 +1,4 @@
+from autowah.variable_cutoff_biquad_filter import VariableCutoffBiquadFilter
 from autowah.variable_cutoff_filter import VariableCutoffFilter
 import matplotlib.pyplot as plt
 import numpy as np
@@ -113,6 +114,42 @@ def test_autowah_variable_cutoff_time_response():
     plt.plot(ts, ys_max_values)
     plt.plot(ts, ys)
     plt.savefig('docs/test_results/test_autowah_variable_cutoff_time_response_variable_fc.png')
+    assert np.all(np.abs(ys) <= ys_max_values)
+
+def test_autowah_variable_cutoff_biquad_time_response():
+    RATE = 44100
+
+    vcf = VariableCutoffBiquadFilter()
+    freq = 10000
+    # Calculate the normalized cutoff frequency
+    omega_sin = (freq/RATE) * 2 * np.pi
+
+    ts = np.arange(0, .1, 1/44100)
+    input_us = [np.sin((10000*t)*(2*np.pi)) for t in ts]
+
+    # Sweep the control frequency over almost the full range
+    omegas = np.concatenate((
+        np.linspace(0.1, np.pi,int(len(ts)/2)),
+        np.linspace(np.pi, 0.1, int(len(ts)/2))))
+
+    transition_band = (2000/RATE) * 2 * np.pi
+
+    # Create an envelope to account for the bandwidth + the region that the transition is occuring over
+    def envelope(omega, omega_c, transition_band):
+        if omega < (omega_c-transition_band):
+            return .1
+        elif omega < (omega_c+transition_band):
+            return 1.1
+        else:
+            return 1.05
+
+    ys_max_values = [envelope(omega, omega_sin, transition_band) for omega in omegas]
+    ys = vcf.run(input_us, omegas)
+
+    plt.plot(ts, input_us)
+    plt.plot(ts, ys_max_values)
+    plt.plot(ts, ys)
+    plt.savefig('docs/test_results/test_autowah_variable_cutoff_biquad_time_response_variable_fc.png')
     assert np.all(np.abs(ys) <= ys_max_values)
 
 # [1]: [A simple approach to the design of linear phase FIR Digital Filters with Variable Characteristics]
