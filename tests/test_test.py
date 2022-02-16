@@ -119,7 +119,7 @@ def test_autowah_variable_cutoff_time_response():
 def test_autowah_variable_cutoff_biquad_time_response():
     RATE = 44100
 
-    vcf = VariableCutoffBiquadFilter()
+    vcf = VariableCutoffBiquadFilter(Q=1, filter_type='low')
     freq = 10000
     # Calculate the normalized cutoff frequency
     omega_sin = (freq/RATE) * 2 * np.pi
@@ -137,11 +137,11 @@ def test_autowah_variable_cutoff_biquad_time_response():
     # Create an envelope to account for the bandwidth + the region that the transition is occuring over
     def envelope(omega, omega_c, transition_band):
         if omega < (omega_c-transition_band):
-            return .1
+            return .8
         elif omega < (omega_c+transition_band):
-            return 1.1
+            return 1.5
         else:
-            return 1.05
+            return 1.2
 
     ys_max_values = [envelope(omega, omega_sin, transition_band) for omega in omegas]
     ys = vcf.run(input_us, omegas)

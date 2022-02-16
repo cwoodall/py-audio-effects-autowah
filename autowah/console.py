@@ -25,7 +25,7 @@ def run():
     p = pyaudio.PyAudio()
 
     CHANNELS = 1
-    RATE = 44100
+    RATE = int(44100/2)
     CHUNK = int(1024) 
     HISTORY_LENGTH = CHUNK * 20
 
@@ -35,7 +35,7 @@ def run():
 
     # Q!
     # lpf = VariableCutoffFilter(filter_len=31, fs=RATE, chunk=CHUNK)
-    lpf = VariableCutoffBiquadFilter(fs=RATE, chunk=CHUNK)
+    lpf = VariableCutoffBiquadFilter(fs=RATE, chunk=CHUNK, Q=2)
     starting_freq = 10
     sensitivity = 10000
     scope = {
@@ -56,7 +56,7 @@ def run():
         freqs = starting_freq + envelope * sensitivity
 
         # print(freqs)
-        out = .8* lpf.run(audio_data, freqs) + audio_data*.2
+        out = .8* lpf.run(audio_data, freqs) + audio_data*0
         out = out.astype(np.float32)
 
         scope["in"].extend(audio_data)
@@ -102,6 +102,7 @@ def run():
         line2.set_ydata(np.array(scope["envelope"]))
         line3.set_ydata(np.array(scope["out"]))
         fig.canvas.flush_events()
+
     #     time.sleep(20)
     stream.stop_stream()
     #     print("Stream is stopped")
