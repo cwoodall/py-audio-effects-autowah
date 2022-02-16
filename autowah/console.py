@@ -7,6 +7,7 @@ from multiprocessing import Process
 
 from .envelope_follower import EnvelopeFollower
 from .variable_cutoff_filter import VariableCutoffFilter
+from .variable_cutoff_biquad_filter import VariableCutoffBiquadFilter
 import matplotlib.pyplot as plt
 
 # https://www.geeksforgeeks.org/check-data-type-in-numpy/
@@ -25,16 +26,17 @@ def run():
 
     CHANNELS = 1
     RATE = 44100
-    CHUNK = int(1024 * 4)
+    CHUNK = int(1024) 
     HISTORY_LENGTH = CHUNK * 20
 
     # Make these variables controlable
-    ENVELOPE_FOLLOWER_FC = 50
+    ENVELOPE_FOLLOWER_FC = 20
     envelope_follower = EnvelopeFollower(ENVELOPE_FOLLOWER_FC, RATE)
 
     # Q!
-    lpf = VariableCutoffFilter(filter_len=31, fs=RATE, chunk=CHUNK)
-    starting_freq = 50
+    # lpf = VariableCutoffFilter(filter_len=31, fs=RATE, chunk=CHUNK)
+    lpf = VariableCutoffBiquadFilter(fs=RATE, chunk=CHUNK)
+    starting_freq = 10
     sensitivity = 10000
     scope = {
         "in": RingBuffer(capacity=HISTORY_LENGTH),
@@ -54,12 +56,12 @@ def run():
         freqs = starting_freq + envelope * sensitivity
 
         # print(freqs)
-        out = 1* lpf.run(audio_data, freqs)
+        out = .8* lpf.run(audio_data, freqs) + audio_data*.2
         out = out.astype(np.float32)
 
-        # scope["in"].extend(audio_data)
-        # scope["envelope"].extend(envelope)
-        # scope["out"].extend(out)
+        scope["in"].extend(audio_data)
+        scope["envelope"].extend(envelope)
+        scope["out"].extend(out)
 
         return out, pyaudio.paContinue
 
@@ -77,33 +79,31 @@ def run():
 
     stream.start_stream()
 
-    # plt.style.use("ggplot")
+    plt.style.use("ggplot")
 
-    # fig = plt.figure()
-    # ax1: plt.Axes = fig.add_subplot(311)
-    # ax2 = fig.add_subplot(312, sharex=ax1)
-    # ax3 = fig.add_subplot(313, sharex=ax1)
-    # ax1.set_ylim((-1, 1))
-    # ax2.set_ylim((-1, 1))
-    # ax3.set_ylim((-1, 1))
-    # plt.ion()
+    fig = plt.figure()
+    ax1: plt.Axes = fig.add_subplot(311)
+    ax2 = fig.add_subplot(312, sharex=ax1)
+    ax3 = fig.add_subplot(313, sharex=ax1)
+    ax1.set_ylim((-1, 1))
+    ax2.set_ylim((-1, 1))
+    ax3.set_ylim((-1, 1))
+    plt.ion()
 
-    # (line1,) = ax1.plot(np.array(scope["in"]))
-    # (line2,) = ax2.plot(np.array(scope["envelope"]))
-    # (line3,) = ax3.plot(np.array(scope["out"]))
+    (line1,) = ax1.plot(np.array(scope["in"]))
+    (line2,) = ax2.plot(np.array(scope["envelope"]))
+    (line3,) = ax3.plot(np.array(scope["out"]))
 
-    # plt.show()
+    plt.show()
 
     # Move this stuff into a different process...
     while stream.is_active():
-        time.sleep(.1)
-        # line1.set_ydata(np.array(scope["in"]))
-        # line2.set_ydata(np.array(scope["envelope"]))
-        # line3.set_ydata(np.array(scope["out"]))
-        # fig.canvas.flush_events()
-        # time.sleep(.1)
+        line1.set_ydata(np.array(scope["in"]))
+        line2.set_ydata(np.array(scope["envelope"]))
+        line3.set_ydata(np.array(scope["out"]))
+        fig.canvas.flush_events()
     #     time.sleep(20)
-    #     stream.stop_stream()
+    stream.stop_stream()
     #     print("Stream is stopped")
 
     plotter_proc = Process(target=plotter)
