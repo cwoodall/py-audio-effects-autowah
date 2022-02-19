@@ -1,14 +1,17 @@
+from typing import Dict
 import pyaudio
 import numpy as np
 import time
 from numpy_ringbuffer import RingBuffer
+
 import wave
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 
 from .envelope_follower import EnvelopeFollower
 from .variable_cutoff_filter import VariableCutoffFilter
 from .variable_cutoff_biquad_filter import VariableCutoffBiquadFilter
 import matplotlib.pyplot as plt
+
 
 # https://www.geeksforgeeks.org/check-data-type-in-numpy/
 # https://stackoverflow.com/questions/56147161/python-matplotlib-update-plot-in-the-background
@@ -17,67 +20,18 @@ import matplotlib.pyplot as plt
 # Variable Fc filters: A simple approach to design of linear phase FIR filters with variable characteristics (P. Jarske, Y. Neuvo and S. K. Mitra,)
 # https://arxiv.org/pdf/1804.02891.pd
 
-def plotter():
-    while True:
-        time.sleep(1)
+CHANNELS = 1
+RATE = int(44100/4)
+CHUNK = int(1024/2) 
+HISTORY_LENGTH = CHUNK * 20
 
-def run():
-    p = pyaudio.PyAudio()
 
-    CHANNELS = 1
-    RATE = int(44100/2)
-    CHUNK = int(1024) 
-    HISTORY_LENGTH = CHUNK * 20
-
-    # Make these variables controlable
-    ENVELOPE_FOLLOWER_FC = 20
-    envelope_follower = EnvelopeFollower(ENVELOPE_FOLLOWER_FC, RATE)
-
-    # Q!
-    # lpf = VariableCutoffFilter(filter_len=31, fs=RATE, chunk=CHUNK)
-    lpf = VariableCutoffBiquadFilter(fs=RATE, chunk=CHUNK, Q=2)
-    starting_freq = 10
-    sensitivity = 10000
-    scope = {
-        "in": RingBuffer(capacity=HISTORY_LENGTH),
-        "envelope": RingBuffer(capacity=HISTORY_LENGTH),
-        "out": RingBuffer(capacity=HISTORY_LENGTH),
+def plotter(scope: Dict):
+    scope_buffers = {
+        k: RingBuffer(capacity=HISTORY_LENGTH) for k in scope.keys()
     }
-
-    for sig in scope.values():
+    for sig in scope_buffers.values():
         sig.extend(np.zeros(sig.maxlen))
-
-    def callback(in_data, frame_count, time_info, flag):
-        # using Numpy to convert to array for processing
-        audio_data = np.fromstring(in_data, dtype=np.float32)
-        # Process data here
-
-        envelope = envelope_follower.run(audio_data)*1
-        freqs = starting_freq + envelope * sensitivity
-
-        # print(freqs)
-        out = .8* lpf.run(audio_data, freqs) + audio_data*0
-        out = out.astype(np.float32)
-
-        scope["in"].extend(audio_data)
-        scope["envelope"].extend(envelope)
-        scope["out"].extend(out)
-
-        return out, pyaudio.paContinue
-
-
-    # wf = wave.open('test.wav', 'rb')
-    stream = p.open(
-        format=pyaudio.paFloat32,
-        channels=CHANNELS,
-        rate=RATE,
-        frames_per_buffer=int(CHUNK),
-        output=True,
-        input=True,
-        stream_callback=callback,
-    )
-
-    stream.start_stream()
 
     plt.style.use("ggplot")
 
@@ -90,26 +44,90 @@ def run():
     ax3.set_ylim((-1, 1))
     plt.ion()
 
-    (line1,) = ax1.plot(np.array(scope["in"]))
-    (line2,) = ax2.plot(np.array(scope["envelope"]))
-    (line3,) = ax3.plot(np.array(scope["out"]))
-
+    (line1,) = ax1.plot(np.array(scope_buffers["in"]))
+    (line2,) = ax2.plot(np.array(scope_buffers["envelope"]))
+    (line3,) = ax3.plot(np.array(scope_buffers["out"]))
     plt.show()
+    fig.canvas.draw()
+    for name, q in scope.items():
+        while not q.empty():
+            scope_buffers[name].extend(q.get_nowait())
 
-    # Move this stuff into a different process...
-    while stream.is_active():
-        line1.set_ydata(np.array(scope["in"]))
-        line2.set_ydata(np.array(scope["envelope"]))
-        line3.set_ydata(np.array(scope["out"]))
+    while True:
+        for name, q in scope.items():
+            while not q.empty():
+                scope_buffers[name].extend(q.get_nowait())
+            
+        # Move this stuff into a different process...
+        line1.set_ydata(np.array(scope_buffers["in"]))
+        line2.set_ydata(np.array(scope_buffers["envelope"]))
+        line3.set_ydata(np.array(scope_buffers["out"]))
         fig.canvas.flush_events()
+        fig.canvas.draw()
 
-    #     time.sleep(20)
-    stream.stop_stream()
-    #     print("Stream is stopped")
+def stream(scope):
+    p = pyaudio.PyAudio()
 
-    plotter_proc = Process(target=plotter)
-    plotter_proc.start()
-    plotter_proc.join()
+    # Make these variables controlable
+    ENVELOPE_FOLLOWER_FC = 20
+    envelope_follower = EnvelopeFollower(ENVELOPE_FOLLOWER_FC, RATE)
+
+    # Q!
+    # if filter_type is "fir":
+    #     lpf = VariableCutoffFilter(filter_len=31, fs=RATE, chunk=CHUNK)
+    # else:
+    lpf = VariableCutoffBiquadFilter(fs=RATE, chunk=CHUNK, Q=8)
+    
+    starting_freq = 10
+    sensitivity = 10000
+
+    def callback(in_data, frame_count, time_info, flag):
+        # using Numpy to convert to array for processing
+        audio_data = np.fromstring(in_data, dtype=np.float32)
+        # Process data here
+
+        envelope = envelope_follower.run(audio_data)*1
+        freqs = starting_freq + envelope * sensitivity
+
+        out = .8* lpf.run(audio_data, freqs)
+        out = out.astype(np.float32)
+
+        scope["in"].put_nowait(audio_data)
+        scope["envelope"].put_nowait(envelope)
+        scope["out"].put_nowait(out)
+
+        return out, pyaudio.paContinue
+
+    stream = p.open(
+        format=pyaudio.paFloat32,
+        channels=CHANNELS,
+        rate=RATE,
+        frames_per_buffer=int(CHUNK),
+        output=True,
+        input=True,
+        stream_callback=callback,
+    )
+
+    stream.start_stream()
+    while True:
+        time.sleep(1)
+
     stream.close()
 
     p.terminate()
+
+def run():
+    scope = {
+        "in": Queue(),
+        "envelope": Queue(),
+        "out": Queue(),
+    }
+    stream_proc = Process(target=stream, args=(scope,))
+    plotter_proc = Process(target=plotter, args=(scope,))
+    plotter_proc.start()
+    stream_proc.start()
+
+
+    stream_proc.join()
+    plotter_proc.join()
+
