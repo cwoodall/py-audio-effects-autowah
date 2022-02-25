@@ -59,22 +59,23 @@ def plotter(scope: Dict, cv):
         cv.values[cv_name].value = val
         fig.canvas.draw_idle()
 
-    def toggle_value(cv_name: str, __name):
+    def toggle_value(cv_name: str):
         cv.values[cv_name].value = not cv.values[cv_name].value
 
     slider_axes = []
     sliders = []
+    y_offset = 0.01
     for i, x in enumerate(cv.values.values()):
         if x.typestr == "b":
             # Make checkbuttons with all plotted lines with correct visibility
-            rax = plt.axes([0.25, i * 0.03 + 0.01, 0.25, 0.03])
-            # labels = [str(line.get_label()) for line in lines]
-            # visibility = [line.get_visible() for line in lines]
+            rax = plt.axes([0.25, y_offset, 0.25, 0.1])
+            y_offset += 0.1
             widget = CheckButtons(rax, [x.name], [x.value])
-            widget.on_clicked(partial(toggle_value, x.name))
+            widget.on_clicked(toggle_value)
             sliders.append(widget)
         else:
-            slider_axes.append(plt.axes([0.25, i * 0.03 + 0.01, 0.65, 0.03]))
+            slider_axes.append(plt.axes([0.25, y_offset, 0.65, 0.03]))
+            y_offset += 0.03
             slider = Slider(
                 ax=slider_axes[-1],
                 label=x.name,

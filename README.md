@@ -27,6 +27,7 @@ graph LR
 
 ### Todo
 
+#### Done
 - [x] Cleanup Envelope Detector implementation
 - [x] Implement variable bandwidth filter (needs to be computed per sample)
 - [x] Cleanup the variable bw filter
@@ -34,15 +35,24 @@ graph LR
 - [x] Fix the underruns based on the filter len... Or get a better tuneable Q filter in there...
 - [x] Finish the autowah integration
 - [x] control variables and interactive plot
-- [ ] Fix exiting the program cleanly
-- [ ] Migrate to a pyqtplot based UI
+- [x] Get CI working
+
+#### Important before Blog Post
+
 - [ ] Add a compression block
-- [ ] Get CI working
-- [ ] Clean up the scope code
+- [ ] Apply to a wav file
+- [ ] Documentation sweep of the code base
+
+#### Blog Post
+
+- [ ] Record some videos
 - [ ] Abstract block type + wiring diagram concept?
 - [ ] Create plots and gather resources
 - [ ] Diagram out architecture of the system
 - [ ] Write blog post
 - [ ] Publish
-- [ ] Record some videos
-- [ ] Apply to a wav file
+
+#### Someday
+- [ ] Fix exiting the program cleanly
+- [ ] Migrate to a pyqtplot based UI
+- [ ] Clean up the scope code
