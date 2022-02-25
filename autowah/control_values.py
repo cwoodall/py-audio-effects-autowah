@@ -1,19 +1,18 @@
-
-
 from dataclasses import dataclass
 from multiprocessing import Lock, Value
 from typing import Any, List
 
 
 @dataclass
-class ControlValueDef():
+class ControlValueDef:
     name: str
-    typestr: str = 'f'
+    typestr: str = "f"
     init_value: Any = 0.0
     min: float = 0
     max: float = 1
 
-class ControlValue():
+
+class ControlValue:
     def __init__(self, cvd: ControlValueDef):
         self.lock = Lock()
         self.defn = cvd
@@ -49,9 +48,8 @@ class ControlValue():
     def max(self):
         return self.defn.max
 
-class ControlValues():
+
+class ControlValues:
     def __init__(self, values: List[ControlValueDef]):
         self.lock = Lock()
-        self.values = {
-            x.name: ControlValue(x) for x in values
-        }
+        self.values = {x.name: ControlValue(x) for x in values}

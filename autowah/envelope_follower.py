@@ -46,7 +46,6 @@ class EnvelopeFollower:
         # Step 1: take the absolute value of the input signal
         abs_x = np.abs(x)
 
-
         # Step 2: apply a low pass filter to find the envelope of the signal
         y, self._z = signal.lfilter(self._b, self._a, abs_x, zi=self._z)
         return y

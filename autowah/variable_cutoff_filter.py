@@ -3,11 +3,13 @@ import numpy as np
 import numba
 from collections import deque
 
+
 @numba.jit()
 def find_nearest_idx(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return idx
+
 
 @numba.jit()
 def _coefficient_sin(n, omega_c):
@@ -15,6 +17,7 @@ def _coefficient_sin(n, omega_c):
         return np.sin(omega_c * n)
     else:
         return omega_c
+
 
 class VariableCutoffFilter:
     """
@@ -26,13 +29,13 @@ class VariableCutoffFilter:
           ISSN 0165-1684, https://doi.org/10.1016/0165-1684(88)90090-4.
     """
 
-    def __init__(self, filter_len=51, fs: float = None, chunk =None):
+    def __init__(self, filter_len=51, fs: float = None, chunk=None):
         """
         :param fs: Sample rate/frequency in Hz, if this is None then we assume 0-PI normalized inputs.
         :param filter_len:
         """
 
-        self.fs = fs or 2*np.pi
+        self.fs = fs or 2 * np.pi
 
         self._filter_len = filter_len
 
@@ -63,10 +66,14 @@ class VariableCutoffFilter:
         self._z.extend(np.zeros(self._filter_len, dtype=np.float32))
 
         # Create a lookup table for the available filter frequencies from 0 to nyquist
-        self._coefficients_lut_size = 1024*2
-        self._coefficients_lut_omegas = np.linspace(0, np.pi, endpoint=False, num=self._coefficients_lut_size)
-        self._coefficients_lut = [self._compute_coefficients(w) for w in self._coefficients_lut_omegas]    
-    
+        self._coefficients_lut_size = 1024 * 2
+        self._coefficients_lut_omegas = np.linspace(
+            0, np.pi, endpoint=False, num=self._coefficients_lut_size
+        )
+        self._coefficients_lut = [
+            self._compute_coefficients(w) for w in self._coefficients_lut_omegas
+        ]
+
     def run(self, u, fc):
         """
         fc is converted to scale based on what fs is set to
@@ -83,12 +90,16 @@ class VariableCutoffFilter:
             self.ys = np.empty(len(u), dtype=np.float32)
 
         # Normalize omega_c between 0 and pi (to obey nyquist)
-        coeffs_idx = np.clip(np.round((self._coefficients_lut_size-1)*2*fc/self.fs),0,self._coefficients_lut_size-1)
+        coeffs_idx = np.clip(
+            np.round((self._coefficients_lut_size - 1) * 2 * fc / self.fs),
+            0,
+            self._coefficients_lut_size - 1,
+        )
 
         for i in range(len(u)):
             # coeffs_idx = find_nearest_idx(self._coefficients_lut_omegas, omega_c[i])
             coeffs = self._coefficients_lut[int(coeffs_idx[i])]
-            self.ys[i] = self._step(u[i],coeffs)
+            self.ys[i] = self._step(u[i], coeffs)
         return self.ys
 
     def _step(self, u, b):
@@ -104,7 +115,6 @@ class VariableCutoffFilter:
         self._z.append(u)
         return sum([b[i] * self._z[i] for i in range(self._filter_len)])
 
-
     def _compute_coefficients(self, omega_c):
         return self.coefficients * self._coefficient_calc(self.ns, omega_c)
 
@@ -119,7 +129,8 @@ class VariableCutoffFilter:
                 [
                     h_M0(n) * 1 / np.sin(self._w_co * n) if n != 0 else 1 / np.pi
                     for n in self.ns
-                ], dtype=np.float32
+                ],
+                dtype=np.float32,
             )
         else:
             raise NotImplementedError("Even case is not implemented")
