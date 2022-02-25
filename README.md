@@ -42,12 +42,14 @@ graph LR
 - [ ] Add a compression block
 - [ ] Apply to a wav file
 - [ ] Documentation sweep of the code base
+- [ ] Breakout unit tests for each section
 
 #### Blog Post
 
 - [ ] Record some videos
 - [ ] Abstract block type + wiring diagram concept?
 - [ ] Create plots and gather resources
+- [ ] Plots of the movable filter. Maybe even some interactive graphics?
 - [ ] Diagram out architecture of the system
 - [ ] Write blog post
 - [ ] Publish
