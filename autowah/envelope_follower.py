@@ -5,7 +5,7 @@ import numpy as np
 class EnvelopeFollower:
     """ """
 
-    def __init__(self, bandwidth_Hz: float = 100, sample_rate_Hz: float = 44100):
+    def __init__(self, bandwidth_Hz: float = 10, sample_rate_Hz: float = 44100):
         """
         :param bandwidth_Hz: Cutoff frequency to use in the lowpass filter stage
         :param sample_rate_Hz: Sample rate/frequency in Hz
@@ -36,8 +36,7 @@ class EnvelopeFollower:
 
     def run(self, x):
         """
-        # https://www.dsprelated.com/showarticle/938.php  Asynchronous Real Square-Law Envelope Detection
-
+        # https://www.dsprelated.com/showarticle/938.php  
         """
         if not self._is_init:
             self._is_init = True
